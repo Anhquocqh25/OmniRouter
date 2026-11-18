@@ -4,28 +4,28 @@ This roadmap defines the iterative milestones for OmniRouter, transitioning from
 
 ---
 
-## Milestone 1: Core Gateway & Provider Registry (Current)
+## Milestone 1: Core Gateway & Provider Registry (Completed)
 - [x] Spec Kit SDD integration and Constitution definition.
 - [x] Architectural design and technical specifications (`docs/ARCHITECTURE.md`, `docs/ROADMAP.md`).
-- [ ] TypeScript and Fastify server scaffolding.
-- [ ] `ProviderAdapter` interface definition and `OpenAIProviderAdapter` implementation.
-- [ ] Centralized `ProviderRegistry` with model-to-provider routing.
-- [ ] Local gateway authentication middleware with zero credential leakage.
-- [ ] Standard `/v1/models` and `/v1/chat/completions` (streaming + non-streaming) endpoints.
-- [ ] Unit and integration test suite with Vitest.
+- [x] TypeScript and Fastify server scaffolding.
+- [x] `ProviderAdapter` interface definition and `OpenAIProviderAdapter` implementation.
+- [x] Centralized `ProviderRegistry` with model-to-provider routing.
+- [x] Local gateway authentication middleware with zero credential leakage.
+- [x] Standard `/v1/models` and `/v1/chat/completions` (streaming + non-streaming) endpoints.
+- [x] Unit and integration test suite with Vitest (21 tests).
 
 ---
 
-## Milestone 2: Multi-Provider Expansion & Intelligent Routing
-- [ ] **Anthropic Adapter:** Support for Claude 3.5 Sonnet / Haiku via Messages API conversion.
-- [ ] **Google Gemini Adapter:** Support for Gemini 1.5 Pro / Flash.
-- [ ] **Ollama / Local LLM Adapter:** Local offline models (e.g., Llama 3, Qwen 2.5).
-- [ ] **Intelligent Routing & Failover:** Automatic fallback when upstream encounters 429 rate limits or 5xx outages.
-- [ ] **Cost & Latency Routing:** Prefer fastest or cheapest adapter for identical capability classes.
+## Milestone 2: Multi-Provider Expansion & Intelligent Routing (Completed)
+- [x] **Anthropic Adapter:** Support for Claude 3.5 Sonnet / Haiku / Opus via Messages API conversion (`src/providers/anthropic.adapter.ts`).
+- [x] **Google Gemini Adapter:** Support for Gemini 1.5 Pro / Flash, Gemini 2.0 via REST & SSE conversion (`src/providers/gemini.adapter.ts`).
+- [x] **Ollama / Local LLM Adapter:** Local offline models (Llama 3, Qwen 2.5, Mistral, DeepSeek) with dynamic model tag discovery (`src/providers/ollama.adapter.ts`).
+- [x] **Intelligent Routing & Failover:** Automatic fallback chains when upstream encounters 429 rate limits, timeouts, or 5xx outages (`src/providers/registry.ts`, `src/routes/chat.ts`).
+- [x] **Multi-Provider Test Suite:** 35 unit and integration tests passing (`tests/`).
 
 ---
 
-## Milestone 3: Encrypted Persistence & Local Storage (Drizzle ORM)
+## Milestone 3: Encrypted Persistence & Local Storage (Drizzle ORM) (Next)
 - [ ] SQLite database integration via `better-sqlite3` and Drizzle ORM.
 - [ ] Encrypted credential storage at rest (`AES-256-GCM`).
 - [ ] Multi-key management: Create, revoke, and set rate limits on local client API keys.

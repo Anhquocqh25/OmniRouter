@@ -19,7 +19,17 @@ export class ProviderRegistry {
     "llama": "ollama",
     "mistral": "ollama",
     "qwen": "ollama",
+    "deepseek": "ollama",
   };
+
+  private fallbackChains = new Map<string, string[]>([
+    ["gpt-4o", ["claude-3-5-sonnet", "gemini-1.5-pro"]],
+    ["gpt-4o-mini", ["claude-3-5-haiku", "gemini-1.5-flash"]],
+    ["claude-3-5-sonnet", ["gpt-4o", "gemini-1.5-pro"]],
+    ["claude-3-5-haiku", ["gpt-4o-mini", "gemini-1.5-flash"]],
+    ["gemini-1.5-pro", ["gpt-4o", "claude-3-5-sonnet"]],
+    ["gemini-1.5-flash", ["gpt-4o-mini", "claude-3-5-haiku"]],
+  ]);
 
   register(adapter: ProviderAdapter): void {
     this.adapters.set(adapter.id.toLowerCase(), adapter);
@@ -37,12 +47,19 @@ export class ProviderRegistry {
     return Array.from(this.adapters.values());
   }
 
+  setFallbackChain(model: string, fallbacks: string[]): void {
+    this.fallbackChains.set(model.toLowerCase(), fallbacks);
+  }
+
+  getFallbackChain(model: string): string[] {
+    return this.fallbackChains.get(model.toLowerCase()) || [];
+  }
+
   /**
    * Resolves a model identifier to a concrete provider adapter.
    * Supports:
    * 1. Explicit prefix: 'openai/gpt-4o' -> adapter: openai, modelId: 'gpt-4o'
    * 2. Auto-inference: 'gpt-4o' -> adapter: openai, modelId: 'gpt-4o'
-   * 3. Fallback: If only one configured adapter exists and supports the model
    */
   resolveRoute(requestedModel: string): ResolvedRoute | undefined {
     const trimmed = requestedModel.trim();
@@ -70,6 +87,34 @@ export class ProviderRegistry {
     }
 
     return undefined;
+  }
+
+  /**
+   * Resolves a chain of routes: [primary, ...fallbacks]
+   * Ensures no duplicates and only includes routes with registered & configured adapters.
+   */
+  resolveRouteChain(requestedModel: string): ResolvedRoute[] {
+    const primary = this.resolveRoute(requestedModel);
+    if (!primary) return [];
+
+    const chain: ResolvedRoute[] = [primary];
+    const seenAdapters = new Set<string>([primary.adapter.id.toLowerCase()]);
+
+    const normalizedModel = requestedModel.includes("/")
+      ? requestedModel.substring(requestedModel.indexOf("/") + 1).toLowerCase()
+      : requestedModel.toLowerCase();
+
+    const fallbackModels = this.fallbackChains.get(normalizedModel) || [];
+
+    for (const fbModel of fallbackModels) {
+      const fbRoute = this.resolveRoute(fbModel);
+      if (fbRoute && !seenAdapters.has(fbRoute.adapter.id.toLowerCase()) && fbRoute.adapter.isConfigured()) {
+        seenAdapters.add(fbRoute.adapter.id.toLowerCase());
+        chain.push(fbRoute);
+      }
+    }
+
+    return chain;
   }
 
   /**

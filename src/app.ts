@@ -3,6 +3,9 @@ import cors from "@fastify/cors";
 import { Config, loadConfig } from "./config.js";
 import { ProviderRegistry } from "./providers/registry.js";
 import { OpenAIProviderAdapter } from "./providers/openai.adapter.js";
+import { AnthropicProviderAdapter } from "./providers/anthropic.adapter.js";
+import { GeminiProviderAdapter } from "./providers/gemini.adapter.js";
+import { OllamaProviderAdapter } from "./providers/ollama.adapter.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { registerModelRoutes } from "./routes/models.js";
 import { registerChatRoutes } from "./routes/chat.js";
@@ -40,21 +43,39 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     allowedHeaders: ["Content-Type", "Authorization", "api-key"],
   });
 
-  // Setup Provider Registry & default OpenAI adapter
+  // Setup Provider Registry & default adapters
   const registry = options.registry || new ProviderRegistry();
   if (!options.registry) {
-    const openAIAdapter = new OpenAIProviderAdapter({
-      apiKey: config.OPENAI_API_KEY,
-      baseUrl: config.OPENAI_BASE_URL,
-    });
-    registry.register(openAIAdapter);
+    registry.register(
+      new OpenAIProviderAdapter({
+        apiKey: config.OPENAI_API_KEY,
+        baseUrl: config.OPENAI_BASE_URL,
+      })
+    );
+    registry.register(
+      new AnthropicProviderAdapter({
+        apiKey: config.ANTHROPIC_API_KEY,
+        baseUrl: config.ANTHROPIC_BASE_URL,
+      })
+    );
+    registry.register(
+      new GeminiProviderAdapter({
+        apiKey: config.GEMINI_API_KEY,
+        baseUrl: config.GEMINI_BASE_URL,
+      })
+    );
+    registry.register(
+      new OllamaProviderAdapter({
+        baseUrl: config.OLLAMA_BASE_URL,
+      })
+    );
   }
 
   // Health endpoint (public)
   app.get("/health", async () => {
     return {
       status: "ok",
-      version: "0.1.0",
+      version: "0.2.0",
       timestamp: new Date().toISOString(),
       configured_providers: registry
         .getAllAdapters()
@@ -99,7 +120,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const statusCode = err?.statusCode || 500;
     return reply.status(statusCode).send({
       error: {
-        message: statusCode === 500 ? "Internal server error" : (err?.message || "Internal server error"),
+        message: statusCode === 500 ? "Internal server error" : err?.message || "Internal server error",
         type: "api_error",
         param: null,
         code: null,

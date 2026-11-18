@@ -1,7 +1,14 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { ChatCompletionRequestSchema } from "../providers/types.js";
+import { ChatCompletionChunk, ChatCompletionRequestSchema } from "../providers/types.js";
 import { ProviderRegistry } from "../providers/registry.js";
-import { BadRequestError, ModelNotFoundError } from "../utils/errors.js";
+import { BadRequestError, ModelNotFoundError, OmniRouterError } from "../utils/errors.js";
+
+function isRetryableError(err: unknown): boolean {
+  if (err instanceof OmniRouterError) {
+    return err.statusCode === 429 || err.statusCode === 502 || err.statusCode === 503 || err.statusCode === 504;
+  }
+  return true; // Network or fetch abort error
+}
 
 export function registerChatRoutes(fastify: FastifyInstance, registry: ProviderRegistry): void {
   fastify.post("/v1/chat/completions", async (request: FastifyRequest, reply: FastifyReply) => {
@@ -16,17 +23,43 @@ export function registerChatRoutes(fastify: FastifyInstance, registry: ProviderR
 
     const payload = parseResult.data;
 
-    // 2. Resolve provider adapter for the requested model
-    const resolved = registry.resolveRoute(payload.model);
-    if (!resolved) {
+    // 2. Resolve provider route chain (primary + failovers)
+    const routeChain = registry.resolveRouteChain(payload.model);
+    if (routeChain.length === 0) {
       throw new ModelNotFoundError(payload.model);
     }
 
-    const { adapter, modelId: upstreamModel } = resolved;
-    const upstreamPayload = { ...payload, model: upstreamModel };
-
-    // 3. Handle Streaming response
+    // 3. Handle Streaming response with failover
     if (payload.stream) {
+      let activeStream: AsyncIterable<ChatCompletionChunk> | undefined;
+      let firstChunk: ChatCompletionChunk | undefined;
+      let streamIterator: AsyncIterator<ChatCompletionChunk> | undefined;
+      let lastStreamError: Error | undefined;
+
+      // Try each route in chain to connect to the stream
+      for (const route of routeChain) {
+        try {
+          const upstreamPayload = { ...payload, model: route.modelId };
+          activeStream = route.adapter.chatCompletionStream(upstreamPayload);
+          streamIterator = activeStream[Symbol.asyncIterator]();
+          const firstResult = await streamIterator.next();
+          if (!firstResult.done) {
+            firstChunk = firstResult.value;
+          }
+          break; // Connected and received first chunk successfully!
+        } catch (err: unknown) {
+          lastStreamError = err instanceof Error ? err : new Error(String(err));
+          if (isRetryableError(err)) {
+            continue; // Fail over to next provider
+          }
+          throw err;
+        }
+      }
+
+      if (!activeStream || !streamIterator) {
+        throw lastStreamError || new OmniRouterError("All streaming providers in failover chain failed.", 502);
+      }
+
       reply.raw.setHeader("Content-Type", "text/event-stream; charset=utf-8");
       reply.raw.setHeader("Cache-Control", "no-cache, no-transform");
       reply.raw.setHeader("Connection", "keep-alive");
@@ -39,11 +72,16 @@ export function registerChatRoutes(fastify: FastifyInstance, registry: ProviderR
       });
 
       try {
-        const stream = adapter.chatCompletionStream(upstreamPayload);
-        for await (const chunk of stream) {
-          if (clientDisconnected) break;
-          reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
+        if (firstChunk) {
+          reply.raw.write(`data: ${JSON.stringify(firstChunk)}\n\n`);
         }
+
+        while (!clientDisconnected) {
+          const { done, value } = await streamIterator.next();
+          if (done) break;
+          reply.raw.write(`data: ${JSON.stringify(value)}\n\n`);
+        }
+
         if (!clientDisconnected) {
           reply.raw.write("data: [DONE]\n\n");
         }
@@ -63,8 +101,23 @@ export function registerChatRoutes(fastify: FastifyInstance, registry: ProviderR
       return reply;
     }
 
-    // 4. Handle Non-streaming response
-    const result = await adapter.chatCompletion(upstreamPayload);
-    return reply.send(result);
+    // 4. Handle Non-streaming response with failover
+    let lastError: Error | undefined;
+
+    for (const route of routeChain) {
+      try {
+        const upstreamPayload = { ...payload, model: route.modelId };
+        const result = await route.adapter.chatCompletion(upstreamPayload);
+        return reply.send(result);
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (isRetryableError(err)) {
+          continue; // Fail over to next provider
+        }
+        throw err;
+      }
+    }
+
+    throw lastError || new OmniRouterError("All providers in failover chain failed.", 502);
   });
 }
