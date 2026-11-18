@@ -10,6 +10,12 @@
     "build:frontend": "cd frontend && npm.cmd run build",
     "build": "tsc && npm run build:frontend",
     "start": "node dist/server.js",
+    "gateway:start": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/daemon.ps1 start",
+    "gateway:stop": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/daemon.ps1 stop",
+    "gateway:status": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/daemon.ps1 status",
+    "gateway:restart": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/daemon.ps1 restart",
+    "gateway:tray": "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File scripts/tray.ps1",
+    "gateway:autostart": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/daemon.ps1 autostart",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

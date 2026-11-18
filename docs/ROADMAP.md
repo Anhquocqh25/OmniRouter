@@ -55,7 +55,11 @@ This roadmap defines the iterative milestones for OmniRouter, transitioning from
 
 ---
 
-## Milestone 6: Windows Desktop Packaging & Tray Integration (Next)
-- [ ] Background daemon / Windows Service or System Tray indicator.
-- [ ] One-click start/stop and auto-launch on Windows startup.
-- [ ] Native notifications for quota warnings or upstream outages.
+## Milestone 6: Windows Desktop Packaging & Tray Integration (Completed)
+- [x] **Windows Background Daemon:** `scripts/daemon.ps1` with start, stop, status, restart, and PID lifecycle management (`.omnirouter.pid`).
+- [x] **Windows System Tray Applet:** `scripts/tray.ps1` native NotifyIcon applet with right-click menu (Dashboard, Models, Health check, Start/Stop/Restart, Exit).
+- [x] **Windows Native Toast Notifications:** `scripts/notify.ps1` and `src/utils/notifications.ts` for native Windows WinRT and balloon tip alerts on server events.
+- [x] **Windows Auto-Start on Login:** One-command Windows registry integration via `scripts/daemon.ps1 autostart enable|disable` (`HKCU:\...\Run`).
+- [x] **One-Click Windows Launcher:** `omnirouter.cmd` root batch launcher for seamless double-click or CLI execution.
+- [x] **NPM Gateway Scripts:** Added `gateway:start`, `gateway:stop`, `gateway:status`, `gateway:restart`, `gateway:tray`, `gateway:autostart`.
+- [x] **Complete Test Suite:** 64 tests passing across 18 test files.
