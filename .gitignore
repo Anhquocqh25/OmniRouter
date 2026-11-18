@@ -1,6 +1,27 @@
+# Dependencies
 node_modules/
+frontend/node_modules/
+
+# Build outputs
 dist/
+frontend/dist/
+
+# Environment variables & secrets
 .env
+.env.*
+!.env.example
+
+# Local SQLite databases
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Runtime files
+.omnirouter.pid
 *.log
+
+# OS files
 .DS_Store
 Thumbs.db
