@@ -1,5 +1,8 @@
 import fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
+import fs from "node:fs";
+import path from "node:path";
 import { Config, loadConfig } from "./config.js";
 import { ProviderRegistry } from "./providers/registry.js";
 import { OpenAIProviderAdapter } from "./providers/openai.adapter.js";
@@ -106,7 +109,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get("/health", async () => {
     return {
       status: "ok",
-      version: "0.4.0",
+      version: "0.5.0",
       timestamp: new Date().toISOString(),
       configured_providers: registry
         .getAllAdapters()
@@ -116,15 +119,14 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     };
   });
 
-  // Authentication hook for all /v1 routes (except /v1/oauth/status or public)
+  // Authentication hook for all /v1 routes (except /oauth/* or public)
   const authMiddleware = createAuthMiddleware({
     gatewayKey: config.GATEWAY_KEY,
     keysService,
   });
 
   app.addHook("preHandler", async (request, reply) => {
-    // Exclude loopback /oauth/callback and public oauth initiate from gateway key auth
-    if (request.url.startsWith("/oauth/callback")) {
+    if (request.url.startsWith("/oauth/callback") || request.url === "/" || request.url.startsWith("/assets/")) {
       return;
     }
     if (request.url.startsWith("/v1")) {
@@ -145,6 +147,16 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   // Register OAuth 2.0 PKCE routes
   registerOAuthRoutes(app, oauthManager);
+
+  // Serve Dashboard frontend if built
+  const frontendDistPath = path.resolve(process.cwd(), "frontend/dist");
+  if (fs.existsSync(frontendDistPath)) {
+    app.register(fastifyStatic, {
+      root: frontendDistPath,
+      prefix: "/",
+      index: ["index.html"],
+    });
+  }
 
   // Clean database shutdown on close
   app.addHook("onClose", async () => {

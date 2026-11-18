@@ -45,16 +45,17 @@ This roadmap defines the iterative milestones for OmniRouter, transitioning from
 
 ---
 
-## Milestone 5: Local Web Dashboard (React + Vite + shadcn/ui) (Next)
-- [ ] Embedded Fastify static file serving or standalone desktop dev server.
-- [ ] Model playground: Test prompts against any configured provider.
-- [ ] Live analytics dashboard: Real-time charts for requests/sec, token spend, and latency percentiles.
-- [ ] Visual Key Management & Provider Configuration UI.
-- [ ] Health status and connection check for all upstream providers.
+## Milestone 5: Local Web Dashboard (React + Vite + shadcn/ui) (Completed)
+- [x] **Single-Port Embedded Hosting:** Fastify automatically hosts the compiled React dashboard at `http://127.0.0.1:3000/` via `@fastify/static`.
+- [x] **Live Analytics Dashboard:** Real-time KPI cards for total requests, token spend (in/out), average latency, and recent transaction log (`OverviewTab.tsx`).
+- [x] **Model Playground:** Interactive prompt testing across all configured models (GPT-4o, Claude 3.5, Gemini, Ollama) with temperature and system prompt tuning (`PlaygroundTab.tsx`).
+- [x] **Visual Gateway Key Management:** Create `omni-live-...` keys, copy once, view status, and revoke/delete keys with one click (`KeysTab.tsx`).
+- [x] **Provider & OAuth Connections UI:** Card-based status for OpenAI, Anthropic, Gemini, and Ollama with one-click OAuth connect and key storage (`ProvidersTab.tsx`).
+- [x] **Full Test Suite:** 57 tests passing across 17 test files.
 
 ---
 
-## Milestone 6: Windows Desktop Packaging & Tray Integration
+## Milestone 6: Windows Desktop Packaging & Tray Integration (Next)
 - [ ] Background daemon / Windows Service or System Tray indicator.
 - [ ] One-click start/stop and auto-launch on Windows startup.
 - [ ] Native notifications for quota warnings or upstream outages.
