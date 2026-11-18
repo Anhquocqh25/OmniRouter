@@ -38,3 +38,27 @@ export const usageLogs = sqliteTable("usage_logs", {
 
 export type UsageLog = typeof usageLogs.$inferSelect;
 export type NewUsageLog = typeof usageLogs.$inferInsert;
+
+export const oauthSessions = sqliteTable("oauth_sessions", {
+  state: text("state").primaryKey(),
+  providerId: text("provider_id").notNull(),
+  codeVerifier: text("code_verifier").notNull(),
+  redirectUri: text("redirect_uri").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+});
+
+export type OAuthSession = typeof oauthSessions.$inferSelect;
+export type NewOAuthSession = typeof oauthSessions.$inferInsert;
+
+export const oauthTokens = sqliteTable("oauth_tokens", {
+  providerId: text("provider_id").primaryKey(),
+  encryptedAccessToken: text("encrypted_access_token").notNull(),
+  encryptedRefreshToken: text("encrypted_refresh_token"),
+  tokenType: text("token_type").notNull().default("Bearer"),
+  scope: text("scope"),
+  expiresAt: integer("expires_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type OAuthToken = typeof oauthTokens.$inferSelect;
+export type NewOAuthToken = typeof oauthTokens.$inferInsert;

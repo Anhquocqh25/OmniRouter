@@ -11,6 +11,7 @@ export interface OpenAIAdapterOptions {
   apiKey?: string;
   baseUrl?: string;
   fetchFn?: typeof fetch;
+  tokenProvider?: () => Promise<string | null>;
 }
 
 export class OpenAIProviderAdapter implements ProviderAdapter {
@@ -20,6 +21,7 @@ export class OpenAIProviderAdapter implements ProviderAdapter {
   private apiKey?: string;
   private baseUrl: string;
   private fetchFn: typeof fetch;
+  private tokenProvider?: () => Promise<string | null>;
 
   private static readonly DEFAULT_MODELS: ProviderModel[] = [
     { id: "gpt-4o", name: "GPT-4o", owned_by: "openai", supports_streaming: true },
@@ -35,25 +37,42 @@ export class OpenAIProviderAdapter implements ProviderAdapter {
     this.apiKey = options.apiKey;
     this.baseUrl = (options.baseUrl || "https://api.openai.com/v1").replace(/\/+$/, "");
     this.fetchFn = options.fetchFn || fetch;
+    this.tokenProvider = options.tokenProvider;
   }
 
   isConfigured(): boolean {
-    return Boolean(this.apiKey && this.apiKey.trim().length > 0);
+    return Boolean((this.apiKey && this.apiKey.trim().length > 0) || this.tokenProvider);
   }
 
   setApiKey(key: string): void {
     this.apiKey = key;
   }
 
+  setTokenProvider(provider: () => Promise<string | null>): void {
+    this.tokenProvider = provider;
+  }
+
+  private async resolveToken(): Promise<string | undefined> {
+    if (this.apiKey && this.apiKey.trim().length > 0) {
+      return this.apiKey.trim();
+    }
+    if (this.tokenProvider) {
+      const token = await this.tokenProvider();
+      if (token) return token;
+    }
+    return undefined;
+  }
+
   async listModels(): Promise<ProviderModel[]> {
-    if (!this.isConfigured()) {
+    const token = await this.resolveToken();
+    if (!token) {
       return OpenAIProviderAdapter.DEFAULT_MODELS;
     }
 
     try {
       const response = await this.fetchFn(`${this.baseUrl}/models`, {
         headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -83,9 +102,10 @@ export class OpenAIProviderAdapter implements ProviderAdapter {
   }
 
   async chatCompletion(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
-    if (!this.isConfigured()) {
+    const token = await this.resolveToken();
+    if (!token) {
       throw new UpstreamError(
-        "OpenAI provider is not configured. Please supply an OPENAI_API_KEY.",
+        "OpenAI provider is not configured. Please supply an OPENAI_API_KEY or authenticate via OAuth.",
         503,
         "provider_not_configured"
       );
@@ -99,7 +119,7 @@ export class OpenAIProviderAdapter implements ProviderAdapter {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -116,7 +136,7 @@ export class OpenAIProviderAdapter implements ProviderAdapter {
           errorDetail = errJson.error.message;
         }
       } catch {
-        // Fallback to generic message
+        // Fallback
       }
       throw new UpstreamError(errorDetail, res.status);
     }
@@ -125,9 +145,10 @@ export class OpenAIProviderAdapter implements ProviderAdapter {
   }
 
   async *chatCompletionStream(request: ChatCompletionRequest): AsyncIterable<ChatCompletionChunk> {
-    if (!this.isConfigured()) {
+    const token = await this.resolveToken();
+    if (!token) {
       throw new UpstreamError(
-        "OpenAI provider is not configured. Please supply an OPENAI_API_KEY.",
+        "OpenAI provider is not configured. Please supply an OPENAI_API_KEY or authenticate via OAuth.",
         503,
         "provider_not_configured"
       );
@@ -141,7 +162,7 @@ export class OpenAIProviderAdapter implements ProviderAdapter {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });

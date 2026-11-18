@@ -60,9 +60,28 @@ export function initDatabase(dbPath?: string): DatabaseConnection {
       created_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS oauth_sessions (
+      state TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL,
+      code_verifier TEXT NOT NULL,
+      redirect_uri TEXT NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      provider_id TEXT PRIMARY KEY,
+      encrypted_access_token TEXT NOT NULL,
+      encrypted_refresh_token TEXT,
+      token_type TEXT NOT NULL DEFAULT 'Bearer',
+      scope TEXT,
+      expires_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_usage_created_at ON usage_logs(created_at);
     CREATE INDEX IF NOT EXISTS idx_usage_key_id ON usage_logs(key_id);
     CREATE INDEX IF NOT EXISTS idx_usage_provider ON usage_logs(provider);
+    CREATE INDEX IF NOT EXISTS idx_oauth_sessions_expires ON oauth_sessions(expires_at);
   `);
 
   const db = drizzle(sqlite, { schema });

@@ -35,15 +35,17 @@ This roadmap defines the iterative milestones for OmniRouter, transitioning from
 
 ---
 
-## Milestone 4: Authorized OAuth 2.0 PKCE Flow (Next)
-- [ ] Dedicated local loopback callback server for OAuth authorization.
-- [ ] PKCE verification (`code_verifier` / `code_challenge`).
-- [ ] Official provider OAuth integrations (strictly where API access is authorized by the provider).
-- [ ] Automatic token refresh management in background tasks.
+## Milestone 4: Authorized OAuth 2.0 PKCE Flow (Completed)
+- [x] **RFC 7636 PKCE Engine:** Cryptographically secure `code_verifier`, SHA-256 `code_challenge` (`S256`), and anti-CSRF `state` (`src/oauth/pkce.ts`).
+- [x] **Local Loopback Callback:** `/oauth/callback` loopback listener with branded confirmation HTML response (`src/routes/oauth.ts`).
+- [x] **Encrypted OAuth Vault:** Stored `oauth_sessions` and `oauth_tokens` with AES-256-GCM encrypted access and refresh tokens (`src/oauth/manager.ts`).
+- [x] **Automatic Token Refresh:** Background token renewal when near expiration (threshold: 60s) before executing requests.
+- [x] **Adapter Token Integration:** Provider adapters seamlessly retrieve active OAuth bearer tokens when API keys are absent.
+- [x] **OAuth Test Suite:** 55 tests passing across 16 test files.
 
 ---
 
-## Milestone 5: Local Web Dashboard (React + Vite + shadcn/ui)
+## Milestone 5: Local Web Dashboard (React + Vite + shadcn/ui) (Next)
 - [ ] Embedded Fastify static file serving or standalone desktop dev server.
 - [ ] Model playground: Test prompts against any configured provider.
 - [ ] Live analytics dashboard: Real-time charts for requests/sec, token spend, and latency percentiles.

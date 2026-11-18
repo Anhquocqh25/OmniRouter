@@ -10,11 +10,13 @@ import { createAuthMiddleware } from "./middleware/auth.js";
 import { registerModelRoutes } from "./routes/models.js";
 import { registerChatRoutes } from "./routes/chat.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerOAuthRoutes } from "./routes/oauth.js";
 import { OmniRouterError } from "./utils/errors.js";
 import { DatabaseConnection, initDatabase } from "./db/index.js";
 import { CredentialsService } from "./services/credentials.service.js";
 import { GatewayKeysService } from "./services/keys.service.js";
 import { UsageService } from "./services/usage.service.js";
+import { OAuthManager } from "./oauth/manager.js";
 
 export interface BuildAppOptions {
   config?: Partial<Config>;
@@ -24,6 +26,7 @@ export interface BuildAppOptions {
   credentialsService?: CredentialsService;
   keysService?: GatewayKeysService;
   usageService?: UsageService;
+  oauthManager?: OAuthManager;
 }
 
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
@@ -37,6 +40,11 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     options.credentialsService || new CredentialsService(dbConn.db, config.ENCRYPTION_KEY);
   const keysService = options.keysService || new GatewayKeysService(dbConn.db);
   const usageService = options.usageService || new UsageService(dbConn.db);
+  const oauthManager =
+    options.oauthManager ||
+    new OAuthManager(dbConn.db, {
+      encryptionSecret: config.ENCRYPTION_KEY,
+    });
 
   const app = fastify({
     logger: {
@@ -72,6 +80,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       new OpenAIProviderAdapter({
         apiKey: openaiKey,
         baseUrl: config.OPENAI_BASE_URL,
+        tokenProvider: () => oauthManager.getValidAccessToken("openai"),
       })
     );
     registry.register(
@@ -97,22 +106,27 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get("/health", async () => {
     return {
       status: "ok",
-      version: "0.3.0",
+      version: "0.4.0",
       timestamp: new Date().toISOString(),
       configured_providers: registry
         .getAllAdapters()
         .filter((a) => a.isConfigured())
         .map((a) => a.id),
+      oauth_status: oauthManager.getStatus(),
     };
   });
 
-  // Authentication hook for all /v1 routes (except admin when open or handled separately)
+  // Authentication hook for all /v1 routes (except /v1/oauth/status or public)
   const authMiddleware = createAuthMiddleware({
     gatewayKey: config.GATEWAY_KEY,
     keysService,
   });
 
   app.addHook("preHandler", async (request, reply) => {
+    // Exclude loopback /oauth/callback and public oauth initiate from gateway key auth
+    if (request.url.startsWith("/oauth/callback")) {
+      return;
+    }
     if (request.url.startsWith("/v1")) {
       await authMiddleware(request, reply);
     }
@@ -128,6 +142,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     usageService,
     credentialsService,
   });
+
+  // Register OAuth 2.0 PKCE routes
+  registerOAuthRoutes(app, oauthManager);
 
   // Clean database shutdown on close
   app.addHook("onClose", async () => {
