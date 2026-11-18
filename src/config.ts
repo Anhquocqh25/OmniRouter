@@ -14,6 +14,8 @@ const ConfigSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_BASE_URL: z.string().url().default("https://generativelanguage.googleapis.com/v1beta"),
   OLLAMA_BASE_URL: z.string().url().default("http://127.0.0.1:11434"),
+  DATABASE_PATH: z.string().default("data/omnirouter.db"),
+  ENCRYPTION_KEY: z.string().default("omnirouter-default-secret-key-32bytes!"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
@@ -31,6 +33,8 @@ export function loadConfig(overrides?: Partial<Config>): Config {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     GEMINI_BASE_URL: process.env.GEMINI_BASE_URL,
     OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL,
+    DATABASE_PATH: process.env.DATABASE_PATH,
+    ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
     NODE_ENV: process.env.NODE_ENV,
     ...overrides,
   });

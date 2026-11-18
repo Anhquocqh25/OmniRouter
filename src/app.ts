@@ -9,22 +9,40 @@ import { OllamaProviderAdapter } from "./providers/ollama.adapter.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { registerModelRoutes } from "./routes/models.js";
 import { registerChatRoutes } from "./routes/chat.js";
+import { registerAdminRoutes } from "./routes/admin.js";
 import { OmniRouterError } from "./utils/errors.js";
+import { DatabaseConnection, initDatabase } from "./db/index.js";
+import { CredentialsService } from "./services/credentials.service.js";
+import { GatewayKeysService } from "./services/keys.service.js";
+import { UsageService } from "./services/usage.service.js";
 
 export interface BuildAppOptions {
   config?: Partial<Config>;
   registry?: ProviderRegistry;
+  dbPath?: string;
+  dbConnection?: DatabaseConnection;
+  credentialsService?: CredentialsService;
+  keysService?: GatewayKeysService;
+  usageService?: UsageService;
 }
 
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const config = loadConfig(options.config);
+
+  // Initialize SQLite Database and Drizzle Services
+  const dbPath = options.dbPath || (config.NODE_ENV === "test" ? ":memory:" : config.DATABASE_PATH);
+  const dbConn = options.dbConnection || initDatabase(dbPath);
+
+  const credentialsService =
+    options.credentialsService || new CredentialsService(dbConn.db, config.ENCRYPTION_KEY);
+  const keysService = options.keysService || new GatewayKeysService(dbConn.db);
+  const usageService = options.usageService || new UsageService(dbConn.db);
 
   const app = fastify({
     logger: {
       level: config.NODE_ENV === "test" ? "silent" : "info",
       serializers: {
         req(req) {
-          // Never log raw authorization tokens
           return {
             method: req.method,
             url: req.url,
@@ -36,7 +54,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     },
   });
 
-  // Enable CORS for local clients and web dashboards
+  // Enable CORS
   app.register(cors, {
     origin: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -46,21 +64,25 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   // Setup Provider Registry & default adapters
   const registry = options.registry || new ProviderRegistry();
   if (!options.registry) {
+    const openaiKey = config.OPENAI_API_KEY || credentialsService.getCredential("openai") || undefined;
+    const anthropicKey = config.ANTHROPIC_API_KEY || credentialsService.getCredential("anthropic") || undefined;
+    const geminiKey = config.GEMINI_API_KEY || credentialsService.getCredential("gemini") || undefined;
+
     registry.register(
       new OpenAIProviderAdapter({
-        apiKey: config.OPENAI_API_KEY,
+        apiKey: openaiKey,
         baseUrl: config.OPENAI_BASE_URL,
       })
     );
     registry.register(
       new AnthropicProviderAdapter({
-        apiKey: config.ANTHROPIC_API_KEY,
+        apiKey: anthropicKey,
         baseUrl: config.ANTHROPIC_BASE_URL,
       })
     );
     registry.register(
       new GeminiProviderAdapter({
-        apiKey: config.GEMINI_API_KEY,
+        apiKey: geminiKey,
         baseUrl: config.GEMINI_BASE_URL,
       })
     );
@@ -75,7 +97,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get("/health", async () => {
     return {
       status: "ok",
-      version: "0.2.0",
+      version: "0.3.0",
       timestamp: new Date().toISOString(),
       configured_providers: registry
         .getAllAdapters()
@@ -84,8 +106,12 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     };
   });
 
-  // Authentication hook for all /v1 routes
-  const authMiddleware = createAuthMiddleware({ gatewayKey: config.GATEWAY_KEY });
+  // Authentication hook for all /v1 routes (except admin when open or handled separately)
+  const authMiddleware = createAuthMiddleware({
+    gatewayKey: config.GATEWAY_KEY,
+    keysService,
+  });
+
   app.addHook("preHandler", async (request, reply) => {
     if (request.url.startsWith("/v1")) {
       await authMiddleware(request, reply);
@@ -94,7 +120,23 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   // Register OpenAI-compatible API routes
   registerModelRoutes(app, registry);
-  registerChatRoutes(app, registry);
+  registerChatRoutes(app, registry, usageService);
+
+  // Register Admin & Analytics routes
+  registerAdminRoutes(app, {
+    keysService,
+    usageService,
+    credentialsService,
+  });
+
+  // Clean database shutdown on close
+  app.addHook("onClose", async () => {
+    try {
+      dbConn.close();
+    } catch {
+      // ignore
+    }
+  });
 
   // OpenAI-compatible global error handler
   app.setErrorHandler((error: unknown, _request, reply) => {
@@ -104,7 +146,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
     const err = error as { statusCode?: number; message?: string; validation?: unknown };
 
-    // Fastify validation errors
     if (err && "validation" in err && err.validation) {
       return reply.status(400).send({
         error: {
@@ -116,7 +157,6 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       });
     }
 
-    // Default 500 error (hide internal details in production/test)
     const statusCode = err?.statusCode || 500;
     return reply.status(statusCode).send({
       error: {

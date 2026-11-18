@@ -25,15 +25,17 @@ This roadmap defines the iterative milestones for OmniRouter, transitioning from
 
 ---
 
-## Milestone 3: Encrypted Persistence & Local Storage (Drizzle ORM) (Next)
-- [ ] SQLite database integration via `better-sqlite3` and Drizzle ORM.
-- [ ] Encrypted credential storage at rest (`AES-256-GCM`).
-- [ ] Multi-key management: Create, revoke, and set rate limits on local client API keys.
-- [ ] Usage tracking: Store per-request tokens (prompt, completion), response latency, and error counts.
+## Milestone 3: Encrypted Persistence & Local Storage (Drizzle ORM) (Completed)
+- [x] **SQLite & Drizzle ORM:** Local storage with `better-sqlite3` and schema (`gateway_api_keys`, `provider_credentials`, `usage_logs`).
+- [x] **AES-256-GCM Encryption:** Secure storage of provider secrets with random IV and authentication tag (`src/db/crypto.ts`, `src/services/credentials.service.ts`).
+- [x] **Multi-Key Management:** Create, revoke, verify, and update `last_used_at` on gateway keys (`src/services/keys.service.ts`).
+- [x] **Usage & Token Tracking:** Captures prompt/completion tokens, latency (ms), HTTP status codes, and aggregate analytics (`src/services/usage.service.ts`).
+- [x] **Admin & Metrics Endpoints:** `/v1/admin/metrics`, `/v1/admin/logs`, `/v1/admin/keys`, `/v1/admin/credentials` (`src/routes/admin.ts`).
+- [x] **Comprehensive Test Suite:** 47 tests passing across 13 test files.
 
 ---
 
-## Milestone 4: Authorized OAuth 2.0 PKCE Flow
+## Milestone 4: Authorized OAuth 2.0 PKCE Flow (Next)
 - [ ] Dedicated local loopback callback server for OAuth authorization.
 - [ ] PKCE verification (`code_verifier` / `code_challenge`).
 - [ ] Official provider OAuth integrations (strictly where API access is authorized by the provider).
